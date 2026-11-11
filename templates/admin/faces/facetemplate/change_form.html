@@ -1,0 +1,126 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block submit_buttons_bottom %}
+{# Save tugmasini olib tashlaymiz — FaceTemplate faqat amallar orqali boshqariladi #}
+{% endblock %}
+
+{% block after_related_objects %}
+{{ block.super }}
+{% if template_obj %}
+<div style="background: #ffffff; border: 2px solid #e2e8f0; border-radius: 8px; max-width: 650px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-top: 25px; padding: 20px;">
+    <h3 style="margin-top: 0; margin-bottom: 15px; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; font-size: 18px;">
+        Holatni o'zgartirish amallari
+    </h3>
+
+    {% if template_obj.status == 'pending' %}
+        <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
+            <p style="margin-bottom: 10px; color: #475569; font-size: 14px;">
+                Rasm barcha talablarga javob bersa, tasdiqlash tugmasini bosing:
+            </p>
+            <button type="button" id="btn-approve" style="background: #16a34a; color: white; padding: 10px 22px; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold;">
+                ✔ Rasmni tasdiqlash
+            </button>
+        </div>
+
+        <div>
+            <p style="margin-bottom: 10px; color: #475569; font-size: 14px;">
+                Rasm talablarga javob bermasa, sababini ko'rsatib rad eting:
+            </p>
+            <div style="margin-bottom: 12px;">
+                <label for="reject_reason" style="font-weight: 600; display: block; margin-bottom: 6px; color: #0f172a; font-size: 14px;">
+                    Rad etish sababi (majburiy):
+                </label>
+                <textarea id="reject_reason" rows="3" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font-size: 14px; box-sizing: border-box;" placeholder="Masalan: Yuz to'liq ko'rinmagan, sifat past..."></textarea>
+            </div>
+            <button type="button" id="btn-reject" style="background: #dc2626; color: white; padding: 10px 22px; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold;">
+                ✖ Rasmni rad etish
+            </button>
+        </div>
+
+    {% elif template_obj.status == 'approved' %}
+        <div>
+            <p style="margin-bottom: 10px; color: #475569; font-size: 14px;">
+                Tasdiqlangan rasmni bekor qilish (xodim yangi rasm yuklashi uchun):
+            </p>
+            <div style="margin-bottom: 12px;">
+                <label for="cancel_reason" style="font-weight: 600; display: block; margin-bottom: 6px; color: #0f172a; font-size: 14px;">
+                    Bekor qilish sababi (majburiy):
+                </label>
+                <textarea id="cancel_reason" rows="3" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font-size: 14px; box-sizing: border-box;" placeholder="Masalan: Xodim rasmni yangilamoqchi..."></textarea>
+            </div>
+            <button type="button" id="btn-cancel" style="background: #ea580c; color: white; padding: 10px 22px; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold;">
+                ✖ Tasdiqni bekor qilish
+            </button>
+        </div>
+
+    {% else %}
+        <p style="color: #64748b; font-style: italic; margin: 0; font-size: 14px;">
+            Ushbu rasm rad etilgan holatda. Qo'shimcha amal bajarib bo'lmaydi.
+        </p>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    function postForm(url, extraData) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.style.display = 'none';
+
+        var csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = 'csrfmiddlewaretoken';
+        csrf.value = csrfToken;
+        form.appendChild(csrf);
+
+        if (extraData) {
+            for (var key in extraData) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = extraData[key];
+                form.appendChild(input);
+            }
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    {% if template_obj.status == 'pending' %}
+    document.getElementById('btn-approve').addEventListener('click', function() {
+        if (confirm('Rasmni tasdiqlashni xohlaysizmi?')) {
+            postForm('{% url "admin:faces_facetemplate_approve" template_obj.pk %}');
+        }
+    });
+
+    document.getElementById('btn-reject').addEventListener('click', function() {
+        var reason = document.getElementById('reject_reason').value.trim();
+        if (!reason) {
+            alert('Rad etish sababi kiritilishi shart!');
+            return;
+        }
+        postForm('{% url "admin:faces_facetemplate_reject" template_obj.pk %}', {
+            'rejection_reason': reason
+        });
+    });
+    {% elif template_obj.status == 'approved' %}
+    document.getElementById('btn-cancel').addEventListener('click', function() {
+        var reason = document.getElementById('cancel_reason').value.trim();
+        if (!reason) {
+            alert('Bekor qilish sababi kiritilishi shart!');
+            return;
+        }
+        postForm('{% url "admin:faces_facetemplate_reject" template_obj.pk %}', {
+            'rejection_reason': reason
+        });
+    });
+    {% endif %}
+})();
+</script>
+{% endif %}
+{% endblock %}

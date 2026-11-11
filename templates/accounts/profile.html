@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Profil - Davomat{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm p-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>{{ request.user.first_name }} {{ request.user.last_name }}</h3>
+        <span class="badge bg-secondary">@{{ request.user.username }}</span>
+    </div>
+
+    <hr>
+
+    <h5 class="mb-3">Biometrik Rasm Holati</h5>
+
+    {% if not current_template %}
+        <div class="alert alert-warning">Rasm yuklanmagan</div>
+        <a href="{% url 'photo_upload' %}" class="btn btn-primary w-100">Rasm yuklash</a>
+
+    {% elif current_template.status == 'pending' %}
+        <div class="alert alert-info">Admin tekshirmoqda</div>
+        {% if current_template.image %}
+            <div class="text-center mb-3">
+                <img src="{% url 'secure_image' current_template.pk %}" class="img-fluid rounded border" style="max-height: 350px;" alt="Profil rasmi">
+            </div>
+        {% endif %}
+
+    {% elif current_template.status == 'approved' %}
+        <div class="alert alert-success">Tasdiqlangan</div>
+        {% if current_template.image %}
+            <div class="text-center mb-3">
+                <img src="{% url 'secure_image' current_template.pk %}" class="img-fluid rounded border" style="max-height: 350px;" alt="Profil rasmi">
+            </div>
+        {% endif %}
+
+    {% elif current_template.status == 'rejected' %}
+        <div class="alert alert-danger">
+            <strong>Rad etilgan:</strong> {{ current_template.rejection_reason }}
+        </div>
+        <a href="{% url 'photo_upload' %}" class="btn btn-primary w-100">Rasm yuklash</a>
+    {% endif %}
+
+    <hr class="my-4">
+
+    <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger w-100">Chiqish</button>
+    </form>
+</div>
+{% endblock %}
+
