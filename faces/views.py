@@ -1,11 +1,15 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .forms import PhotoUploadForm
 from .models import FaceTemplate
+from .recognition import face_engine
 from .services import get_current_template, submit_photo
 
 
@@ -60,3 +64,60 @@ def secure_image_view(request, pk):
         return response
     except Exception:
         raise Http404("Fayl topilmadi.")
+
+
+def davomat_view(request):
+    """
+    Davomat sahifasi:
+    Brauzer orqali kamerani yoqib, rasmlar papkasidagi baza bilan yuzni solishtirish.
+    """
+    face_engine.ensure_database_loaded()
+    ismlar = face_engine.ismlar
+    return render(
+        request,
+        "faces/davomat.html",
+        {
+            "ismlar": ismlar,
+            "odamlar_soni": len(ismlar),
+        },
+    )
+
+
+@require_POST
+def davomat_check_api(request):
+    """
+    Kameradan olingan kadrni (base64) qabul qilib, bazadagi odamlar bilan solishtiradi.
+    """
+    try:
+        if request.content_type == "application/json":
+            data = json.loads(request.body.decode("utf-8"))
+            image_data = data.get("image", "")
+        else:
+            image_data = request.POST.get("image", "")
+
+        if not image_data:
+            return JsonResponse({"success": False, "message": "Rasm yuborilmadi"}, status=400)
+
+        result = face_engine.process_base64_image(image_data)
+        result["success"] = True
+        return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Xatolik yuz berdi: {e}"}, status=500)
+
+
+@require_POST
+def davomat_reload_db_api(request):
+    """
+    'rasmlar' papkasidagi yangilangan fayllarni qayta yuklash API.
+    """
+    try:
+        ismlar = face_engine.reload_database()
+        return JsonResponse({
+            "success": True,
+            "odamlar_soni": len(ismlar),
+            "ismlar": ismlar,
+            "message": f"Baza yangilandi! Jami {len(ismlar)} kishi yuklandi.",
+        })
+    except Exception as e:
+        return JsonResponse({"success": False, "message": f"Xatolik: {e}"}, status=500)
+

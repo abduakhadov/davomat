@@ -1,0 +1,350 @@
+{% extends 'base.html' %}
+
+{% block title %}Davomat - Yuzni Tanish{% endblock %}
+
+{% block container_max_width %}960px{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-3">
+                <h4 class="mb-0 fs-5"><i class="bi bi-camera-video me-2"></i> Davomat Tizimi (Kamera orqali tekshirish)</h4>
+                <span class="badge bg-light text-primary fs-6" id="badge-db-count">Bazada: {{ odamlar_soni }} kishi</span>
+            </div>
+
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <!-- Kamera va Canvas qismi -->
+                    <div class="col-md-7 text-center">
+                        <div class="position-relative d-inline-block rounded overflow-hidden shadow-sm bg-dark" style="width: 100%; max-width: 480px; min-height: 360px;">
+                            <video id="webcam" autoplay playsinline muted style="width: 100%; height: auto; transform: scaleX(-1); display: block;"></video>
+                            <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none; transform: scaleX(-1);"></canvas>
+                            <canvas id="captureCanvas" style="display: none;"></canvas>
+
+                            <div id="camera-placeholder" class="d-flex flex-column justify-content-center align-items-center position-absolute top-0 start-0 w-100 h-100 bg-secondary text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-camera mb-3" viewBox="0 0 16 16">
+                                  <path d="M15 12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h1.172a3 3 0 0 0 2.12-.879l.83-.828A1 1 0 0 1 7.827 3h2.344a1 1 0 0 1 .707.293l.828.828A3 3 0 0 0 13.828 5H15a1 1 0 0 1 1 1zM2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4z"/>
+                                  <path d="M8 11a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5m0 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M3 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0"/>
+                                </svg>
+                                <span>Kamera o'chiq</span>
+                            </div>
+                        </div>
+
+                        <!-- Tugmalar -->
+                        <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
+                            <button type="button" class="btn btn-primary" id="btn-toggle-cam">
+                                📷 Kamerani yoqish
+                            </button>
+                            <button type="button" class="btn btn-success" id="btn-check-now" disabled>
+                                🔍 Tekshirish
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-reload-db">
+                                🔄 Bazani yangilash
+                            </button>
+                        </div>
+
+                        <div class="form-check form-switch mt-3 d-flex justify-content-center align-items-center gap-2">
+                            <input class="form-check-input" type="checkbox" id="switch-auto-scan" disabled>
+                            <label class="form-check-label" for="switch-auto-scan">Avtomatik doimiy tekshirish (Auto-scan)</label>
+                        </div>
+                    </div>
+
+                    <!-- Natija va ma'lumotlar paneli -->
+                    <div class="col-md-5">
+                        <h5 class="border-bottom pb-2 mb-3">Tekshiruv Natijasi</h5>
+
+                        <div id="status-card" class="alert alert-secondary text-center py-4 mb-3">
+                            <h5 id="status-title" class="mb-2">Kamerani yoqing</h5>
+                            <p id="status-desc" class="mb-0 text-muted">Kamera yoqilgach, yuzingiz avtomatik aniqlanadi va tekshiriladi.</p>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-header bg-light fw-bold py-2">
+                                📁 Bazadagi odamlar ro'yxati (<span id="span-db-count">{{ odamlar_soni }}</span>):
+                            </div>
+                            <div class="card-body p-2" style="max-height: 160px; overflow-y: auto;">
+                                <ul class="list-group list-group-flush small" id="list-people">
+                                    {% for ism in ismlar %}
+                                        <li class="list-group-item py-1 d-flex justify-content-between align-items-center">
+                                            <span>👤 {{ ism }}</span>
+                                            <span class="badge bg-success rounded-pill">faol</span>
+                                        </li>
+                                    {% empty %}
+                                        <li class="list-group-item text-muted text-center py-2">
+                                            <code>rasmlar/</code> papkasida odamlar mavjud emas.
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info small mb-0">
+                            <strong>💡 Qoida:</strong>
+                            <ul class="mb-0 ps-3">
+                                <li>O'xshashlik bali &ge; 0.45 bo'lsa odam taniladi (yashil).</li>
+                                <li>0.45 dan past bo'lsa "Noma'lum" deb hisoblanadi (qizil).</li>
+                                <li>Yuz sifati past bo'lsa ogohlantirish chiqadi.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var video = document.getElementById('webcam');
+    var overlay = document.getElementById('overlay');
+    var captureCanvas = document.getElementById('captureCanvas');
+    var placeholder = document.getElementById('camera-placeholder');
+
+    var btnToggleCam = document.getElementById('btn-toggle-cam');
+    var btnCheckNow = document.getElementById('btn-check-now');
+    var btnReloadDb = document.getElementById('btn-reload-db');
+    var switchAutoScan = document.getElementById('switch-auto-scan');
+
+    var statusCard = document.getElementById('status-card');
+    var statusTitle = document.getElementById('status-title');
+    var statusDesc = document.getElementById('status-desc');
+    var listPeople = document.getElementById('list-people');
+    var badgeDbCount = document.getElementById('badge-db-count');
+    var spanDbCount = document.getElementById('span-db-count');
+
+    var stream = null;
+    var autoScanInterval = null;
+    var isChecking = false;
+
+    // CSRF olish
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    var csrftoken = getCookie('csrftoken');
+
+    // Kamerani yoqish/o'chirish
+    btnToggleCam.addEventListener('click', function() {
+        if (stream) {
+            stopCamera();
+        } else {
+            startCamera();
+        }
+    });
+
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+            .then(function(s) {
+                stream = s;
+                video.srcObject = s;
+                placeholder.style.display = 'none';
+                btnToggleCam.textContent = '⏹ Kamerani o\'chirish';
+                btnToggleCam.classList.remove('btn-primary');
+                btnToggleCam.classList.add('btn-danger');
+                btnCheckNow.disabled = false;
+                switchAutoScan.disabled = false;
+
+                updateStatus('alert-info', 'Kamera faol', 'Kameraga to\'g\'ri qarang va «Tekshirish» tugmasini bosing.');
+            })
+            .catch(function(err) {
+                console.error("Kamera ochilmadi:", err);
+                alert("Kamera ruxsati berilmadi yoki kamera topilmadi: " + err.message);
+            });
+    }
+
+    function stopCamera() {
+        if (autoScanInterval) {
+            clearInterval(autoScanInterval);
+            autoScanInterval = null;
+            switchAutoScan.checked = false;
+        }
+
+        if (stream) {
+            stream.getTracks().forEach(function(track) { track.stop(); });
+            stream = null;
+        }
+        video.srcObject = null;
+        placeholder.style.display = 'flex';
+        btnToggleCam.textContent = '📷 Kamerani yoqish';
+        btnToggleCam.classList.remove('btn-danger');
+        btnToggleCam.classList.add('btn-primary');
+        btnCheckNow.disabled = true;
+        switchAutoScan.disabled = true;
+
+        clearOverlay();
+        updateStatus('alert-secondary', 'Kamera o\'chiq', 'Kamerani yoqib davomatni tekshirishingiz mumkin.');
+    }
+
+    function clearOverlay() {
+        var ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    function updateStatus(cardClass, title, desc) {
+        statusCard.className = 'alert ' + cardClass + ' text-center py-4 mb-3';
+        statusTitle.textContent = title;
+        statusDesc.textContent = desc;
+    }
+
+    // Bir kadrni rasmga olib serverga yuborish
+    function captureAndCheck() {
+        if (!stream || isChecking || video.videoWidth === 0) return;
+        isChecking = true;
+
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        var ctx = captureCanvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+
+        var dataUrl = captureCanvas.toDataURL('image/jpeg', 0.85);
+
+        fetch('{% url "davomat_check_api" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({ image: dataUrl })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            isChecking = false;
+            handleRecognitionResult(data);
+        })
+        .catch(function(err) {
+            isChecking = false;
+            console.error(err);
+        });
+    }
+
+    function handleRecognitionResult(data) {
+        overlay.width = video.videoWidth;
+        overlay.height = video.videoHeight;
+        var ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        if (!data.results || data.results.length === 0) {
+            updateStatus('alert-warning', 'Yuz topilmadi', 'Kameraga to\'g\'ri qarang.');
+            return;
+        }
+
+        var anyRecognized = false;
+        var recognizedNames = [];
+
+        data.results.forEach(function(r) {
+            var x1 = r.bbox[0];
+            var y1 = r.bbox[1];
+            var x2 = r.bbox[2];
+            var y2 = r.bbox[3];
+            var w = x2 - x1;
+            var h = y2 - y1;
+
+            var strokeColor = '#dc3545'; // qizil
+            if (r.status === 'recognized') {
+                strokeColor = '#198754'; // yashil
+                anyRecognized = true;
+                recognizedNames.push(r.name + ' (' + Math.round(r.score * 100) + '%)');
+            } else if (r.status === 'low_quality') {
+                strokeColor = '#6c757d'; // kulrang
+            }
+
+            // Ramka chizish
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = strokeColor;
+            ctx.strokeRect(x1, y1, w, h);
+
+            // Matn foni
+            var label = (r.status === 'recognized') ? (r.name + ' ' + r.score.toFixed(2)) : r.name;
+            ctx.font = 'bold 16px sans-serif';
+            var textWidth = ctx.measureText(label).width;
+            ctx.fillStyle = strokeColor;
+            ctx.fillRect(x1, Math.max(0, y1 - 26), textWidth + 12, 26);
+
+            // Matn
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(label, x1 + 6, Math.max(18, y1 - 8));
+        });
+
+        if (anyRecognized) {
+            updateStatus('alert-success', '✔ Xodim tanildi: ' + recognizedNames.join(', '), 'Bazada mavjud! Davomat qayd etilishi mumkin.');
+        } else {
+            updateStatus('alert-danger', '✖ Noma\'lum shaxs', 'Ushbu yuz bazada topilmadi!');
+        }
+    }
+
+    // Tugma orqali bir martalik tekshirish
+    btnCheckNow.addEventListener('click', function() {
+        captureAndCheck();
+    });
+
+    // Avtomatik tekshirish svitchi
+    switchAutoScan.addEventListener('change', function() {
+        if (this.checked) {
+            autoScanInterval = setInterval(captureAndCheck, 1200);
+        } else {
+            if (autoScanInterval) {
+                clearInterval(autoScanInterval);
+                autoScanInterval = null;
+            }
+            clearOverlay();
+        }
+    });
+
+    // Bazani yangilash tugmasi
+    btnReloadDb.addEventListener('click', function() {
+        btnReloadDb.disabled = true;
+        btnReloadDb.textContent = 'Yuklanmoqda...';
+
+        fetch('{% url "davomat_reload_db_api" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            btnReloadDb.disabled = false;
+            btnReloadDb.textContent = '🔄 Bazani yangilash';
+
+            if (data.success) {
+                badgeDbCount.textContent = 'Bazada: ' + data.odamlar_soni + ' kishi';
+                spanDbCount.textContent = data.odamlar_soni;
+
+                listPeople.innerHTML = '';
+                if (data.ismlar.length === 0) {
+                    listPeople.innerHTML = '<li class="list-group-item text-muted text-center py-2"><code>rasmlar/</code> papkasida odamlar mavjud emas.</li>';
+                } else {
+                    data.ismlar.forEach(function(ism) {
+                        var li = document.createElement('li');
+                        li.className = 'list-group-item py-1 d-flex justify-content-between align-items-center';
+                        li.innerHTML = '<span>👤 ' + ism + '</span><span class="badge bg-success rounded-pill">faol</span>';
+                        listPeople.appendChild(li);
+                    });
+                }
+                alert(data.message);
+            } else {
+                alert("Xatolik: " + data.message);
+            }
+        })
+        .catch(function(err) {
+            btnReloadDb.disabled = false;
+            btnReloadDb.textContent = '🔄 Bazani yangilash';
+            alert("Aloqa xatosi: " + err);
+        });
+    });
+
+})();
+</script>
+{% endblock %}
+

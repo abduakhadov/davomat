@@ -2,6 +2,8 @@
 .venv/
 venv/
 private_media/
+rasmlar/
+.vscode/
 __pycache__/
 *.py[cod]
 *$py.class
