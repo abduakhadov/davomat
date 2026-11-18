@@ -17,27 +17,34 @@
                 <div class="row g-4">
                     <!-- Kamera va Canvas qismi -->
                     <div class="col-md-7 text-center">
-                        <div class="position-relative d-inline-block rounded overflow-hidden shadow-sm bg-dark" style="width: 100%; max-width: 480px; min-height: 360px;">
-                            <video id="webcam" autoplay playsinline muted style="width: 100%; height: auto; transform: scaleX(-1); display: block;"></video>
-                            <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none; transform: scaleX(-1);"></canvas>
+                        <div class="position-relative d-inline-block rounded overflow-hidden shadow-sm bg-black" style="width: 100%; max-width: 500px; aspect-ratio: 4/3; min-height: 360px;">
+                            <!-- Kamera videosi -->
+                            <video id="webcam" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); position: absolute; top: 0; left: 0; z-index: 1;"></video>
+                            
+                            <!-- Bounding box va matn chiziladigan canvas -->
+                            <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none; z-index: 5;"></canvas>
+                            
+                            <!-- Kadrni kesib olish uchun yashirin canvas -->
                             <canvas id="captureCanvas" style="display: none;"></canvas>
 
-                            <div id="camera-placeholder" class="d-flex flex-column justify-content-center align-items-center position-absolute top-0 start-0 w-100 h-100 bg-secondary text-white">
+                            <!-- Kamera o'chiq bo'lganda ko'rinadigan qatlam (d-flex ishlatilmaydi, inline style bilan) -->
+                            <div id="camera-placeholder" class="position-absolute top-0 start-0 w-100 h-100 bg-secondary text-white flex-column justify-content-center align-items-center" style="display: flex; z-index: 10;">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-camera mb-3" viewBox="0 0 16 16">
                                   <path d="M15 12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h1.172a3 3 0 0 0 2.12-.879l.83-.828A1 1 0 0 1 7.827 3h2.344a1 1 0 0 1 .707.293l.828.828A3 3 0 0 0 13.828 5H15a1 1 0 0 1 1 1zM2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4z"/>
                                   <path d="M8 11a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5m0 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M3 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0"/>
                                 </svg>
-                                <span>Kamera o'chiq</span>
+                                <span class="fs-5 fw-semibold">Kamera o'chiq</span>
+                                <small class="text-light mt-1">«Kamerani yoqish» tugmasini bosing</small>
                             </div>
                         </div>
 
                         <!-- Tugmalar -->
                         <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
-                            <button type="button" class="btn btn-primary" id="btn-toggle-cam">
+                            <button type="button" class="btn btn-primary px-3 fw-bold" id="btn-toggle-cam">
                                 📷 Kamerani yoqish
                             </button>
-                            <button type="button" class="btn btn-success" id="btn-check-now" disabled>
-                                🔍 Tekshirish
+                            <button type="button" class="btn btn-success px-3 fw-bold" id="btn-check-now" disabled>
+                                🔍 Tekshirish (Davomat)
                             </button>
                             <button type="button" class="btn btn-outline-secondary" id="btn-reload-db">
                                 🔄 Bazani yangilash
@@ -117,7 +124,7 @@
     var autoScanInterval = null;
     var isChecking = false;
 
-    // CSRF olish
+    // CSRF token olish
     function getCookie(name) {
         var cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -134,6 +141,29 @@
     }
     var csrftoken = getCookie('csrftoken');
 
+    function hidePlaceholder() {
+        placeholder.classList.add('d-none');
+        placeholder.style.setProperty('display', 'none', 'important');
+    }
+
+    function showPlaceholder() {
+        placeholder.classList.remove('d-none');
+        placeholder.style.setProperty('display', 'flex', 'important');
+    }
+
+    // Video metadata yuklanganda canvas o'lchamini moslash
+    video.addEventListener('loadedmetadata', function() {
+        video.play().catch(function(e) { console.warn("Video play error:", e); });
+        overlay.width = video.videoWidth || 640;
+        overlay.height = video.videoHeight || 480;
+        hidePlaceholder();
+    });
+
+    // Video kadrlar kela boshlaganda placeholder'ni aniq yashirish
+    video.addEventListener('playing', function() {
+        hidePlaceholder();
+    });
+
     // Kamerani yoqish/o'chirish
     btnToggleCam.addEventListener('click', function() {
         if (stream) {
@@ -144,23 +174,42 @@
     });
 
     function startCamera() {
-        navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
-            .then(function(s) {
-                stream = s;
-                video.srcObject = s;
-                placeholder.style.display = 'none';
-                btnToggleCam.textContent = '⏹ Kamerani o\'chirish';
-                btnToggleCam.classList.remove('btn-primary');
-                btnToggleCam.classList.add('btn-danger');
-                btnCheckNow.disabled = false;
-                switchAutoScan.disabled = false;
+        btnToggleCam.disabled = true;
+        btnToggleCam.textContent = 'Kamera yoqilmoqda...';
 
-                updateStatus('alert-info', 'Kamera faol', 'Kameraga to\'g\'ri qarang va «Tekshirish» tugmasini bosing.');
-            })
-            .catch(function(err) {
-                console.error("Kamera ochilmadi:", err);
-                alert("Kamera ruxsati berilmadi yoki kamera topilmadi: " + err.message);
+        navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user'
+            },
+            audio: false
+        })
+        .then(function(s) {
+            stream = s;
+            video.srcObject = s;
+            video.play().catch(function(e) {
+                console.warn("Video play error:", e);
             });
+
+            hidePlaceholder();
+
+            btnToggleCam.disabled = false;
+            btnToggleCam.textContent = '⏹ Kamerani o\'chirish';
+            btnToggleCam.classList.remove('btn-primary');
+            btnToggleCam.classList.add('btn-danger');
+
+            btnCheckNow.disabled = false;
+            switchAutoScan.disabled = false;
+
+            updateStatus('alert-info', 'Kamera faol', 'Kameraga to\'g\'ri qarab «Tekshirish (Davomat)» tugmasini bosing.');
+        })
+        .catch(function(err) {
+            btnToggleCam.disabled = false;
+            btnToggleCam.textContent = '📷 Kamerani yoqish';
+            console.error("Kamera xatosi:", err);
+            alert("Kamerani ochib bo'lmadi: " + err.message + "\nIltimos, brauzerda kamera ruxsati berilganini tekshiring.");
+        });
     }
 
     function stopCamera() {
@@ -175,10 +224,13 @@
             stream = null;
         }
         video.srcObject = null;
-        placeholder.style.display = 'flex';
+
+        showPlaceholder();
+
         btnToggleCam.textContent = '📷 Kamerani yoqish';
         btnToggleCam.classList.remove('btn-danger');
         btnToggleCam.classList.add('btn-primary');
+
         btnCheckNow.disabled = true;
         switchAutoScan.disabled = true;
 
@@ -229,8 +281,11 @@
     }
 
     function handleRecognitionResult(data) {
-        overlay.width = video.videoWidth;
-        overlay.height = video.videoHeight;
+        if (overlay.width !== video.videoWidth) {
+            overlay.width = video.videoWidth;
+            overlay.height = video.videoHeight;
+        }
+
         var ctx = overlay.getContext('2d');
         ctx.clearRect(0, 0, overlay.width, overlay.height);
 
@@ -250,34 +305,38 @@
             var w = x2 - x1;
             var h = y2 - y1;
 
-            var strokeColor = '#dc3545'; // qizil
+            // Video scaleX(-1) bo'lgani sababli, gorizontal koordinatani o'ngdan chapga o'giramiz:
+            var drawX = overlay.width - x2;
+
+            var strokeColor = '#dc3545'; // qizil (Noma'lum)
             if (r.status === 'recognized') {
-                strokeColor = '#198754'; // yashil
+                strokeColor = '#198754'; // yashil (Tanildi)
                 anyRecognized = true;
                 recognizedNames.push(r.name + ' (' + Math.round(r.score * 100) + '%)');
             } else if (r.status === 'low_quality') {
                 strokeColor = '#6c757d'; // kulrang
             }
 
-            // Ramka chizish
+            // Yuz atrofida ramka chizish
             ctx.lineWidth = 3;
             ctx.strokeStyle = strokeColor;
-            ctx.strokeRect(x1, y1, w, h);
+            ctx.strokeRect(drawX, y1, w, h);
 
-            // Matn foni
-            var label = (r.status === 'recognized') ? (r.name + ' ' + r.score.toFixed(2)) : r.name;
+            // Ism yozish uchun rangli fon
+            var label = (r.status === 'recognized') ? (r.name + ' ' + Math.round(r.score * 100) + '%') : r.name;
             ctx.font = 'bold 16px sans-serif';
             var textWidth = ctx.measureText(label).width;
-            ctx.fillStyle = strokeColor;
-            ctx.fillRect(x1, Math.max(0, y1 - 26), textWidth + 12, 26);
 
-            // Matn
+            ctx.fillStyle = strokeColor;
+            ctx.fillRect(drawX, Math.max(0, y1 - 26), textWidth + 12, 26);
+
+            // Ismni yozish
             ctx.fillStyle = '#ffffff';
-            ctx.fillText(label, x1 + 6, Math.max(18, y1 - 8));
+            ctx.fillText(label, drawX + 6, Math.max(18, y1 - 8));
         });
 
         if (anyRecognized) {
-            updateStatus('alert-success', '✔ Xodim tanildi: ' + recognizedNames.join(', '), 'Bazada mavjud! Davomat qayd etilishi mumkin.');
+            updateStatus('alert-success', '✔ Xodim tanildi: ' + recognizedNames.join(', '), 'Bazada mavjud! Davomat qayd etildi.');
         } else {
             updateStatus('alert-danger', '✖ Noma\'lum shaxs', 'Ushbu yuz bazada topilmadi!');
         }
@@ -347,4 +406,3 @@
 })();
 </script>
 {% endblock %}
-
